@@ -49,6 +49,13 @@ def dynamic_execute(text, env):
 class HttpTest(unittest.TestCase):
     pass
 
+def raw_args_eval(raw_args, current_section):
+    raw_text = "\n".join(raw_args)
+    if raw_text and current_section.funcs:
+        for i, func in enumerate(current_section.funcs):
+            raw_text = func(raw_text)
+    return raw_text
+
 def parse_args(str_args):
     if not str_args:
         return None
@@ -89,11 +96,7 @@ def lines_trim(lines):
 methods = {"GET": True, "POST": True}
 def request_parse(raw_args, current_section, env):
     if current_section.funcs:
-        request = "\n".join(raw_args)
-        if current_section.funcs and request:
-            for i, func in enumerate(current_section.funcs):
-                request = func(request)
-
+        request = raw_args_eval(raw_args, current_section)
         raw_args = request.split('\n')
 
     req_line = raw_args[0]
@@ -114,6 +117,10 @@ def request_parse(raw_args, current_section, env):
 
     return args
 
+def timeout_parse(raw_args, current_section, env):
+    timeout = raw_args_eval(raw_args, current_section)
+    return float(timeout)
+
 def more_headers_parse(raw_args, current_section, env):
     headers = ''
     raw_args = lines_trim(raw_args)
@@ -132,13 +139,7 @@ def more_headers_parse(raw_args, current_section, env):
 
 def error_code_parse(raw_args, current_section, env):
     raw_args = lines_trim(raw_args)
-    if current_section.funcs:
-        error_code = "\n".join(raw_args)
-        if current_section.funcs and error_code:
-            for i, func in enumerate(current_section.funcs):
-                error_code = func(error_code)
-
-        raw_args =[error_code]
+    raw_args = [raw_args_eval(raw_args, current_section)]
 
     assertTrue(len(raw_args) ==1, "invalid error_code lines: " + str(len(raw_args)))
     error_code = int(raw_args[0])
@@ -147,10 +148,7 @@ def error_code_parse(raw_args, current_section, env):
     return error_code
 
 def response_body_parse(raw_args, current_section, env):
-    expected_body = "\n".join(raw_args)
-    if expected_body and current_section.funcs:
-        for i, func in enumerate(current_section.funcs):
-            expected_body = func(expected_body)
+    expected_body = raw_args_eval(raw_args, current_section)
 
     return expected_body
 
@@ -174,10 +172,7 @@ def on_fail_parse(raw_args, current_section, env):
 
 ## http://json-schema.org/latest/json-schema-validation.html
 def response_body_schema_parse(raw_args, current_section, env):
-    schema_text = "\n".join(raw_args)
-    if schema_text and current_section.funcs:
-        for i, func in enumerate(current_section.funcs):
-            schema_text = func(schema_text)
+    schema_text = raw_args_eval(raw_args, current_section)
     schema = json.loads(schema_text)
     jschema.Draft4Validator.check_schema(schema)
 
@@ -190,6 +185,7 @@ def response_body_save_parse(raw_args, current_section, env):
 ## TODO: timeout指令支持。
 directives = {
     "request" : {"parse": request_parse},
+    "timeout" : {"parse": timeout_parse},
     "more_headers" : {"parse": more_headers_parse},
     "error_code" : {"parse": error_code_parse},
     "response_body" : {"parse": response_body_parse},
@@ -303,7 +299,9 @@ def response_check(self, testname, req_info,  res, env):
     if req_info.error_code and req_info.error_code.args:
         expected_code = req_info.error_code.args
     self.assertEquals(res.status, expected_code,
-        "expected error_code [" + str(expected_code) + "], but got [" + str(res.status) + "]")
+        "expected error_code [" + str(expected_code) 
+        + "], but got [" + str(res.status) + "] reason [" 
+        + str(res.body) + "]")
 
     expected_body = None
     response_body = req_info.response_body
@@ -385,6 +383,8 @@ def make_test_function(testname, block, url, env):
             # env.pop("req_info")
             myheaders = parse_headers(more_headers.args)
         timeout = 10
+        if req_info.timeout:
+            timeout = req_info.timeout.args 
         assertTrue(method == "GET" or method == "POST", "unexpected http method: " + method)
         if method == "GET":
             res = http.HttpGet(uri, myheaders, timeout)
@@ -399,10 +399,17 @@ def make_test_function(testname, block, url, env):
 
 class HttpTestResult(unittest.TextTestResult):
 
+    def getCost(self, test):
+        cost = 0.0
+        if test and test.res and test.res.cost:
+            cost = test.res.cost
+        return cost 
+
     def addError(self, test, err):
         # super(HttpTestResult, self).addError(test, err)
+        cost = self.getCost(test)
         if self.showAll:
-            self.stream.writeln(RED("ERROR"))
+            self.stream.writeln(RED("ERROR [%.3fs]" % (cost)))
         elif self.dots:
             self.stream.write(RED('E'))
             self.stream.flush()
@@ -411,8 +418,9 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addFailure(self, test, err):
         # super(HttpTestResult, self).addFailure(test, err)
+        cost = self.getCost(test)
         if self.showAll:
-            self.stream.writeln(RED("FAIL"))
+            self.stream.writeln(RED("FAIL [%.3fs]" % (cost)))
         elif self.dots:
             self.stream.write(RED('F'))
             self.stream.flush()
@@ -431,8 +439,9 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addSuccess(self, test):
     	# unittest.TestResult.addSuccess(self, test)
+        cost = self.getCost(test)
         if self.showAll:
-            self.stream.writeln(GREEN("ok"))
+            self.stream.writeln(GREEN("ok [%.3fs]" % (cost)))
         elif self.dots:
             self.stream.write(GREEN('.'))
             self.stream.flush()

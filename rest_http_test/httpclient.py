@@ -127,9 +127,10 @@ def HttpReq(method, url, body, headers, timeout):
         res = Response({"status": status, "body": body, "headers": resp.headers.dict})
 
     cost = time.time()-begin
+    res.cost = cost
     if res.status >= 400:
         if LOG_LEVEL <= logging.ERROR:
-    		log.error("FAIL REQUEST [ %s ] status: %s, cost: %.3f", req_debug, res.status, cost)
+    		log.error("FAIL REQUEST [ %s ] status: %s, cost: %.3f body: %s", req_debug, res.status, cost, res.body)
     else:
         if LOG_LEVEL <= logging.INFO:
     		log.info ("REQUEST [ %s ] status: %s, cost: %.3f", req_debug, res.status, cost)
