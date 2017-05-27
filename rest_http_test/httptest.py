@@ -397,19 +397,26 @@ def make_test_function(testname, block, url, env):
 
     return http_test_internal
 
+FMT = "@%s --- %s [%.3fs]"
+
 class HttpTestResult(unittest.TextTestResult):
 
-    def getCost(self, test):
+    def getDebugInfo(self, test):
         cost = 0.0
-        if test and test.res and test.res.cost:
-            cost = test.res.cost
-        return cost 
+        server_ip = ""
+        if test and test.res:
+            if test.res.cost:
+                cost = test.res.cost
+            if test.res.server_ip:
+                server_ip = test.res.server_ip
+
+        return cost, server_ip
 
     def addError(self, test, err):
         # super(HttpTestResult, self).addError(test, err)
-        cost = self.getCost(test)
+        cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
-            self.stream.writeln(RED("ERROR [%.3fs]" % (cost)))
+            self.stream.writeln(FMT % (server_ip, RED("ERROR"), cost))
         elif self.dots:
             self.stream.write(RED('E'))
             self.stream.flush()
@@ -418,14 +425,15 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addFailure(self, test, err):
         # super(HttpTestResult, self).addFailure(test, err)
-        cost = self.getCost(test)
+        cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
-            self.stream.writeln(RED("FAIL [%.3fs]" % (cost)))
+            self.stream.writeln(FMT % (server_ip, RED("FAIL"), cost))
         elif self.dots:
             self.stream.write(RED('F'))
             self.stream.flush()
         error = self._exc_info_to_string(err, test)
         log.error(RED(error))
+
         testname = test.testname
         req_info = test.req_info
         if req_info and req_info.on_fail:
@@ -439,9 +447,9 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addSuccess(self, test):
     	# unittest.TestResult.addSuccess(self, test)
-        cost = self.getCost(test)
+        cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
-            self.stream.writeln(GREEN("ok [%.3fs]" % (cost)))
+            self.stream.writeln(FMT % (server_ip, GREEN("OK"), cost))
         elif self.dots:
             self.stream.write(GREEN('.'))
             self.stream.flush()

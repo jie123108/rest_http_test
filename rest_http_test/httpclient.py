@@ -102,6 +102,7 @@ def HttpReq(method, url, body, headers, timeout):
     	log.info("REQUEST [ %s ] timeout: %s", req_debug, timeout_str)
 
     res = Response({"status": 500, "body":  None, "headers": NewHeaders()})
+    server_ip = ""
     begin = time.time()
     try:
         if method == 'POST':
@@ -110,6 +111,11 @@ def HttpReq(method, url, body, headers, timeout):
             req = urllib2.Request(url, data=None, headers=headers)
 
         resp = urllib2.urlopen(req, timeout=timeout)
+        try:
+            (ip, port) = resp.fp._sock.fp._sock.getpeername()
+            server_ip = ip
+        except Exception, e:
+            log.error("resp.fp._sock.fp._sock.getpeername failed! %s", str(e))
     except urllib2.HTTPError, e:
         status = e.code
         body = e.read()
@@ -125,9 +131,12 @@ def HttpReq(method, url, body, headers, timeout):
         status = resp.code
         body = resp.read()
         res = Response({"status": status, "body": body, "headers": resp.headers.dict})
-
+    
     cost = time.time()-begin
     res.cost = cost
+    res.server_ip = server_ip or ""
+
+
     if res.status >= 400:
         if LOG_LEVEL <= logging.ERROR:
     		log.error("FAIL REQUEST [ %s ] status: %s, cost: %.3f body: %s", req_debug, res.status, cost, res.body)
