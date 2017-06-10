@@ -2,3 +2,5 @@ api_monitor.py
 PyTestMain.py
 nf_api_monitor
 dist
+build
+rest_http_test.egg-info
