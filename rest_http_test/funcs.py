@@ -6,12 +6,12 @@ log = logging.getLogger()
 
 def xtabs(x):
     if not x:
-        return ""
+        return u""
     t = []
     for i in range(x):
-        t.append('  ')
+        t.append(u'  ')
 
-    return ''.join(t)
+    return u''.join(t)
 
 def table_format_ex(jso, level, replace_fields):
     lines = []
@@ -21,22 +21,22 @@ def table_format_ex(jso, level, replace_fields):
         keys.sort()
         for k in keys:
             if replace_fields and replace_fields.get(k):
-                value = "###"
+                value = u"###"
             else:
                 value = jso[k]
                 vtype = type(value)
                 if vtype == dict or vtype == list:
-                    value = "\n" + table_format_ex(value, level + 1, replace_fields)
+                    value = u"\n" + table_format_ex(value, level + 1, replace_fields)
 
-            lines.append(xtabs(level) + k + ":" + str(value))
+            lines.append(xtabs(level) + k + u":" + unicode(value))
     elif jt == list:
         for i in range(len(jso)):
             value = jso[i]
             vtype = type(value)
             if vtype == dict or vtype == list:
-                value = "\n" + table_format_ex(value, level + 1, replace_fields)
+                value = u"\n" + table_format_ex(value, level + 1, replace_fields)
 
-            lines.append(xtabs(level) + str(i) + ":" + str(value))
+            lines.append(xtabs(level) + str(i) + u":" + unicode(value))
 
     return "\n".join(lines)
 
@@ -50,7 +50,7 @@ def json_fmt(s):
     try:
         jso  = json.loads(s)
     except Exception, ex:
-        log.error("loads(%s) failed! err: %s", s, str(ex))
+        log.error(u"loads(%s) failed! err: %s", s, str(ex))
         return s
 
     if jso:

@@ -291,7 +291,7 @@ def short_str(string, slen):
 	if len(string) <= slen:
 		return string
 	else:
-		return string[0:slen-3] + "+."
+		return string[0:slen-3] + u"+."
 
 
 def response_check(self, testname, req_info,  res, env):
@@ -327,10 +327,10 @@ def response_check(self, testname, req_info,  res, env):
 		matched = str_match(rsp_body, expected_body)
 		if not matched:
 			## TODO: 更准确定位差异点。
-			log.error("expected response_body[[" + expected_body + "]]")
-			log.error("             but got  [[" + rsp_body + "]]")
-			self.assertTrue(matched, "expected response_body [" + short_str(expected_body,1024)
-					+ "], but got [" + short_str(rsp_body, 1024) + "]")
+			log.error(u"expected response_body[[%s]]", expected_body)
+			log.error(u"             but got  [[%s]]", rsp_body)
+			self.assertTrue(matched, u"expected response_body [%s], but got [%s]" % (
+					short_str(expected_body,1024), short_str(rsp_body, 1024)))
 	else:
 		response_body_schema = req_info.response_body_schema
 		if response_body_schema and response_body_schema.args:
