@@ -1,13 +1,29 @@
 import logging
+
 # import coloredlogs
 # coloredlogs.install()
 console = logging.StreamHandler()
-console.setLevel(logging.WARN)
-formatter = logging.Formatter('%(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s')
+# console.setLevel(logging.INFO)
+formatter = logging.Formatter(' %(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s')
 console.setFormatter(formatter)
-log = logging.getLogger('')
+log = logging.getLogger()
 log.addHandler(console)
+log.setLevel(logging.INFO)
 
+import httpclient as http
+def SetHttpLogLevel(log_level):
+	LEVELS = {
+		"debug": logging.DEBUG,
+		"info": logging.INFO,
+		"warn": logging.WARN,
+		"error": logging.ERROR,
+		"fatal": logging.FATAL,
+	}
+	level = LEVELS.get(log_level)
+	if level == None:
+		log.error("invalid log_level: %s", log_level)
+		return
+	http.LOG_LEVEL = level
 
 """
 You can use these ANSI escape codes:
@@ -42,6 +58,15 @@ def GREEN(msg):
 
 def YELLOW(msg):
     return YELLOW_ + msg + NC_
+
+def write_content(filename, content):
+	try:
+		import codecs
+		f = codecs.open(filename,'w', "utf-8")
+		f.write(content)
+		f.close()
+	except Exception, ex:
+		log.error("write(%s, content) failed! ex: %s", filename, ex)
 
 # current request context (used in eval function)
 from dotmap import DotMap as dotdict

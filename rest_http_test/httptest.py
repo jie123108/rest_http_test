@@ -41,7 +41,7 @@ def dynamic_execute(text, env):
         # log.error("`%s` globals: %s", text, json.dumps(globals().keys()))
         value = eval(text, globals(), env)
         assertTrue(value != None, " code `" + text + "` not return")
-        return value or ''
+        return str(value) or ''
 
     newtext = code_re.sub(execute_and_replace, text)
     return newtext
@@ -293,9 +293,11 @@ def short_str(string, slen):
 	else:
 		return string[0:slen-3] + u"+."
 
+FILENAME_COUNTER = 1
 
 def response_check(self, testname, req_info,  res, env):
 	global ht_save_data
+	global FILENAME_COUNTER
 	# Check Http Code
 	expected_code = 200
 	if req_info.error_code and req_info.error_code.args:
@@ -324,13 +326,24 @@ def response_check(self, testname, req_info,  res, env):
 				rsp_body = filter(rsp_body)
 
 	if expected_body:
-		matched = str_match(rsp_body, expected_body)
+		matched = rsp_body == expected_body or str_match(rsp_body, expected_body)
 		if not matched:
 			## TODO: 更准确定位差异点。
-			log.error(u"expected response_body[[%s]]", expected_body)
-			log.error(u"             but got  [[%s]]", rsp_body)
-			self.assertTrue(matched, u"expected response_body [%s], but got [%s]" % (
-					short_str(expected_body,1024), short_str(rsp_body, 1024)))
+			if len(rsp_body) > 1000 or len(expected_body) > 1000:
+				filename_rsp_body = "./%s.rsp_body.%d.txt" % (testname, FILENAME_COUNTER)
+				filename_exp_body = "./%s.exp_body.%d.txt" % (testname, FILENAME_COUNTER)
+				FILENAME_COUNTER += 1
+				log.error("write debug content to: %s", filename_rsp_body)
+				log.error("write debug content to: %s", filename_exp_body)
+				write_content(filename_rsp_body, rsp_body)
+				write_content(filename_exp_body, expected_body)
+				self.assertTrue(matched, u"expected response_body [file:%s], but got [file:%s]" % (
+						filename_exp_body, filename_rsp_body))
+			else:
+				log.error(u"expected response_body[[%s]]", expected_body)
+				log.error(u"             but got  [[%s]]", rsp_body)
+				self.assertTrue(matched, u"expected response_body [%s], but got [%s]" % (
+						short_str(expected_body,1024), short_str(rsp_body, 1024)))
 	else:
 		response_body_schema = req_info.response_body_schema
 		if response_body_schema and response_body_schema.args:

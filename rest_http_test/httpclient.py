@@ -16,6 +16,7 @@ import logging
 log = logging.getLogger()
 
 LOG_LEVEL = logging.FATAL
+# LOG_LEVEL = logging.INFO
 
 class CaseInsensitiveDict(dict):
     @classmethod
@@ -131,7 +132,7 @@ def HttpReq(method, url, body, headers, timeout):
         status = resp.code
         body = resp.read()
         res = Response({"status": status, "body": body, "headers": resp.headers.dict})
-    
+
     cost = time.time()-begin
     res.cost = cost
     res.server_ip = server_ip or ""

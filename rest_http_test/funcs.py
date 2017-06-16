@@ -20,15 +20,16 @@ def table_format_ex(jso, level, replace_fields):
         keys = jso.keys()
         keys.sort()
         for k in keys:
-            if replace_fields and replace_fields.get(k):
-                value = u"###"
+            if replace_fields and k in replace_fields:
+                value = replace_fields.get(k)
             else:
                 value = jso[k]
                 vtype = type(value)
                 if vtype == dict or vtype == list:
                     value = u"\n" + table_format_ex(value, level + 1, replace_fields)
 
-            lines.append(xtabs(level) + k + u":" + unicode(value))
+            if value != None:
+            	lines.append(xtabs(level) + k + u":" + unicode(value))
     elif jt == list:
         for i in range(len(jso)):
             value = jso[i]
