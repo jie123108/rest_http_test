@@ -157,13 +157,10 @@ X-Token: `get_token()`
 --- error_code
 200
 --- response_body json_fmt
-{"ok": true, "data": {"tel": "`test_tel`33", "user_id": "`get_user_id()`", "age": "`age`", "address": "`address`", "username": "`new_username()`"}}
+{"ok": true, "data": {"tel": "`test_tel`", "user_id": "`get_user_id()`", "age": "`age`", "address": "`address`", "username": "`new_username()`"}}
 --- response_body_filter
 json_fmt
 
-"""
-
-"""
 === Test Userinfo Check by Schema
 --- request
 GET /account/user_info/get
@@ -200,8 +197,6 @@ X-Token: NONE
 --- error_code
 200
 
---- on_fail
-send_msg_to_dingding
 
 """
 
