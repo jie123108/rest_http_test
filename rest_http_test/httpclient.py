@@ -15,6 +15,13 @@ except:
 import logging
 log = logging.getLogger()
 
+import ssl
+
+ctx = ssl.create_default_context()
+# 不校验Hostname.
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+
 LOG_LEVEL = logging.FATAL
 # LOG_LEVEL = logging.INFO
 
@@ -102,16 +109,18 @@ def HttpReq(method, url, body, headers, timeout):
     if LOG_LEVEL <= logging.INFO:
     	log.info("REQUEST [ %s ] timeout: %s", req_debug, timeout_str)
 
+    host = headers.get("Host")
     res = Response({"status": 500, "body":  None, "headers": NewHeaders()})
     server_ip = ""
     begin = time.time()
     try:
         if method == 'POST':
-            req = urllib2.Request(url, data=body, headers=headers)
+            req = urllib2.Request(url, data=body, headers=headers, origin_req_host=host)
         else:
-            req = urllib2.Request(url, data=None, headers=headers)
+            req = urllib2.Request(url, data=None, headers=headers, origin_req_host=host)
 
-        resp = urllib2.urlopen(req, timeout=timeout)
+        resp = urllib2.urlopen(req, timeout=timeout, context=ctx)
+
         try:
             (ip, port) = resp.fp._sock.fp._sock.getpeername()
             server_ip = ip
@@ -136,7 +145,6 @@ def HttpReq(method, url, body, headers, timeout):
     cost = time.time()-begin
     res.cost = cost
     res.server_ip = server_ip or ""
-
 
     if res.status >= 400:
         if LOG_LEVEL <= logging.ERROR:
