@@ -86,9 +86,9 @@ def GetDebugStr(method, url, body, headers, timeout):
                 debug_body = body[0:1023]
         else:
             debug_body = "[[not text body: "  + str(content_type) + "]]"
-        req_debug = "curl -v -X " + method + " " + headerstr(headers) + " '" + url + "' -d '" + debug_body + "' -o /dev/null"
+        req_debug = "curl -v -k -X " + method + " " + headerstr(headers) + " '" + url + "' -d '" + debug_body + "' -o /dev/null"
     else:
-        req_debug = "curl -v -X " + method + " " + headerstr(headers) + " '" + url + "' -o /dev/null"
+        req_debug = "curl -v -k -X " + method + " " + headerstr(headers) + " '" + url + "' -o /dev/null"
 
     return req_debug
 
