@@ -3,7 +3,9 @@
 import unittest
 import httpclient as http
 import json
+import time
 import re
+import sys
 from dotmap import DotMap as dotdict
 import jsonschema as jschema
 from funcs import *
@@ -27,7 +29,7 @@ def assertTrue(assertval, errmsg):
     if not assertval:
         raise TestDataError(errmsg)
 
-code_re = re.compile(r"`[^`]*`")
+code_re = re.compile(r"```.+```|`[^`]+`", re.MULTILINE|re.DOTALL)
 
 
 ## 执行，并替换字符串中的`code`部分的内容。
@@ -36,12 +38,15 @@ def dynamic_execute(text, env):
         return text
 
     def execute_and_replace(matchobj):
-        text = matchobj.group(0)
-        text = text[1:len(text)-1]
-        # log.error("`%s` globals: %s", text, json.dumps(globals().keys()))
-        value = eval(text, globals(), env)
-        assertTrue(value != None, " code `" + text + "` not return")
-        return str(value) or ''
+        func = matchobj.group(0)
+        if func.startswith("```"):
+            func = func[3:len(func)-3]
+        else:
+            func = func[1:len(func)-1]
+        # log.error("`%s` globals: %s", func, json.dumps(globals().keys()))
+        value = eval(func, globals(), env)
+        assertTrue(value != None, " code `" + func + "` not return")
+        return unicode(value) or u''
 
     newtext = code_re.sub(execute_and_replace, text)
     return newtext
@@ -55,11 +60,19 @@ def dynamic_execute_ex(obj, field, env):
     def execute_and_replace(matchobj):
         obj[field] = newtext
         func = matchobj.group(0)
-        func = func[1:len(func)-1]
-        value = eval(func, globals(), env)
+        if func.startswith("```"):
+            func = func[3:len(func)-3]
+        else:
+            func = func[1:len(func)-1]
+        # log.error("`%s` globals: %s", func, json.dumps(globals().keys()))
+        try:
+            value = eval(func, globals(), env)
+        except Exception, ex:
+            log.error("eval(%s) failed! ex:%s", func, ex)
+            assertTrue(False, ex)
         assertTrue(value != None, " code `" + func + "` not return")
         # log.info("execute code [%s] result: %s", func, str(value))
-        return str(value) or ''
+        return unicode(value) or u''
 
     while True:
         # 多次执行替换, 这样第一个执行替换后的结果, 能反馈到下一下执行中.
@@ -144,6 +157,10 @@ def timeout_parse(raw_args, current_section, env):
     timeout = raw_args_eval(raw_args, current_section)
     return float(timeout)
 
+def sleep_before_parse(raw_args, current_section, env):
+    sleep_before = raw_args_eval(raw_args, current_section)
+    return float(sleep_before)
+
 def more_headers_parse(raw_args, current_section, env):
     headers = ''
     raw_args = lines_trim(raw_args)
@@ -196,7 +213,11 @@ def on_fail_parse(raw_args, current_section, env):
 ## http://json-schema.org/latest/json-schema-validation.html
 def response_body_schema_parse(raw_args, current_section, env):
     schema_text = raw_args_eval(raw_args, current_section)
+    try:
     schema = json.loads(schema_text)
+    except Exception, ex:
+        log.error("json schema [[%s]] invalid! %s", schema_text, ex)
+        raise ex
     jschema.Draft4Validator.check_schema(schema)
 
     return schema
@@ -205,10 +226,10 @@ def response_body_save_parse(raw_args, current_section, env):
     return True
 
 
-## TODO: timeout指令支持。
 directives = {
     "request" : {"parse": request_parse},
     "timeout" : {"parse": timeout_parse},
+    "sleep_before": {"parse": sleep_before_parse},
     "more_headers" : {"parse": more_headers_parse},
     "error_code" : {"parse": error_code_parse},
     "response_body" : {"parse": response_body_parse},
@@ -321,16 +342,17 @@ def response_check(self, testname, req_info,  res, env):
     global FILENAME_COUNTER
     req_debug = ""
     if self.res and self.res.req_debug:
-    	req_debug = self.res.req_debug
+        req_debug = self.res.req_debug
 
     # Check Http Code
     expected_code = 200
     if req_info.error_code and req_info.error_code.args:
         expected_code = req_info.error_code.args
-    self.assertEquals(res.status, expected_code,
-        "request [" + req_debug + "] \nexpected error_code [" + str(expected_code)
-        + "], but got [" + str(res.status) + "] reason ["
-        + str(res.body) + "]")
+    equals = res.status == expected_code
+    if not equals:
+        errmsg = u"request [%s] \nexpected error_code [%s], but got [%s] reason [%s]" % (
+            req_debug, expected_code, res.status, res.body)
+        self.assertTrue(equals, errmsg)
 
     expected_body = None
     response_body = req_info.response_body
@@ -365,10 +387,10 @@ def response_check(self, testname, req_info,  res, env):
                 self.assertTrue(matched, u"request [%s] \nexpected response_body [file:%s], but got [file:%s]" % (
                         req_debug, filename_exp_body, filename_rsp_body))
             else:
-                log.error(u"expected response_body[[%s]]", expected_body)
-                log.error(u"             but got  [[%s]]", rsp_body)
-                self.assertTrue(matched, u"request [" + req_debug + "] \nexpected response_body [%s], but got [%s]" % (
-                        req_debug, short_str(expected_body,1024), short_str(rsp_body, 1024)))
+                log.error(u"expected response_body[[%s]]", unicode(expected_body))
+                log.error(u"             but got  [[%s]]", unicode(rsp_body))
+                self.assertTrue(matched, u"request [%s] \nexpected response_body [%s], but got [%s]" % (
+                        req_debug, expected_body, rsp_body))
     else:
         response_body_schema = req_info.response_body_schema
         if response_body_schema and response_body_schema.args:
@@ -421,13 +443,21 @@ def make_test_function(testname, block, url, env):
         if args.uri.startswith("http://") or \
             args.uri.startswith("https://"):
             uri = args.uri
-        else:
+        elif url:
             uri = url + args.uri
+        else:
+            uri = args.uri
 
-        timeout = 10
+        timeout = 5
         if req_info.timeout:
             timeout = req_info.timeout.args
         assertTrue(method == "GET" or method == "POST", "unexpected http method: " + method)
+
+        sleep_before = 0
+        if req_info.sleep_before:
+            sleep_before = req_info.sleep_before.args
+        if sleep_before > 0:
+            time.sleep(sleep_before)
 
         if method == "GET":
             res = http.HttpGet(uri, myheaders, timeout)
@@ -445,6 +475,9 @@ def make_test_function(testname, block, url, env):
 FMT = "@%s --- %s [%.3fs]"
 
 class HttpTestResult(unittest.TextTestResult):
+    def __init__(self, stream, descriptions, verbosity):
+        super(HttpTestResult, self).__init__(stream, descriptions, verbosity)
+        self.tests = []
 
     def getDebugInfo(self, test):
         cost = 0.0
@@ -462,6 +495,7 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addError(self, test, err):
         # super(HttpTestResult, self).addError(test, err)
+        self.tests.append(test)
         cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
             self.stream.writeln(FMT % (server_ip, RED("ERROR"), cost))
@@ -473,6 +507,7 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addFailure(self, test, err):
         # super(HttpTestResult, self).addFailure(test, err)
+        self.tests.append(test)
         cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
             self.stream.writeln(FMT % (server_ip, RED("FAIL"), cost))
@@ -495,6 +530,7 @@ class HttpTestResult(unittest.TextTestResult):
 
     def addSuccess(self, test):
         # unittest.TestResult.addSuccess(self, test)
+        self.tests.append(test)
         cost, server_ip = self.getDebugInfo(test)
         if self.showAll:
             self.stream.writeln(FMT % (server_ip, GREEN("OK"), cost))
@@ -502,6 +538,28 @@ class HttpTestResult(unittest.TextTestResult):
             self.stream.write(GREEN('.'))
             self.stream.flush()
 
+class SimpleTestRunner(unittest.TextTestRunner):
+    def __init__(self, stream=sys.stderr, descriptions=1, verbosity=1, failfast=False, buffer=False, resultclass=None):
+        unittest.TextTestRunner.__init__(self, stream=stream, descriptions=descriptions,
+                        verbosity=verbosity, failfast=failfast, buffer=buffer, resultclass=resultclass)
+
+    def run(self, test):
+        "Run the given test case or test suite."
+        result = self._makeResult()
+        test(result)
+        # result.printErrors()
+        # if not result.wasSuccessful():
+        #     self.stream.write("FAILED (")
+        #     failed, errored = map(len, (result.failures, result.errors))
+        #     if failed:
+        #         self.stream.write("failures=%d" % failed)
+        #     if errored:
+        #         if failed: self.stream.write(", ")
+        #         self.stream.write("errors=%d" % errored)
+        #     self.stream.writeln(")")
+        # else:
+        #     pass
+        return result
 
 def run(blocks, url, env):
     suite = unittest.TestSuite()
@@ -520,3 +578,20 @@ def run(blocks, url, env):
     runner = unittest.TextTestRunner(verbosity=2, resultclass=HttpTestResult)
     runner.run(suite)
 
+def exec_one(block, url, env):
+    suite = unittest.TestSuite()
+    testcases = block_parse(block, "=== ")
+    if len(testcases) != 1:
+        error("invalid block, find %d blocks" % (len(testcases)))
+    testcase = testcases[0]
+    testname = testcase.section_name
+    testcontent = testcase.content
+    test_func = make_test_function(testname, testcontent, url, env)
+    func_name = "test_" + re.sub(r"[ #]", "_", testname)
+
+    setattr(HttpTest, func_name, test_func)
+    suite.addTest(HttpTest(func_name))
+    # 执行测试
+    runner = SimpleTestRunner(verbosity=2, resultclass=HttpTestResult)
+    # result is: rest_http_test.httptest.HttpTest
+    return runner.run(suite).tests[0]

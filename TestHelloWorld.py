@@ -4,6 +4,7 @@ import thread
 import time
 import json
 import urlparse
+from rest_http_test import httptest
 from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
 # Test Hello Server
@@ -25,7 +26,7 @@ def startServer():
     server.serve_forever()
 
 key="lxj"
-def TestHelloWorld():
+def HelloWorldBlock():
     blocks = """
 === Test Hello World
 --- request
@@ -40,11 +41,19 @@ Host: test.com
 Hello `key`
 --- response_body_save
 """
-    from rest_http_test import httptest
+    return blocks
+
+def TestHelloWorld():
+    blocks = HelloWorldBlock()
     httptest.run(blocks,"http://127.0.0.1:1234", globals())
+
+def TestHelloWorldSimple():
+    blocks = HelloWorldBlock()
+    test = httptest.exec_one(blocks,"http://127.0.0.1:1234", globals())
+    print(test.res.body)
 
 if __name__ == '__main__':
     thread.start_new_thread(startServer, ())
     time.sleep(0.05)
-    TestHelloWorld()
-    
+    # TestHelloWorld()
+    TestHelloWorldSimple()
