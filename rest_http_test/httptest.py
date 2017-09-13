@@ -214,7 +214,7 @@ def on_fail_parse(raw_args, current_section, env):
 def response_body_schema_parse(raw_args, current_section, env):
     schema_text = raw_args_eval(raw_args, current_section)
     try:
-    schema = json.loads(schema_text)
+        schema = json.loads(schema_text)
     except Exception, ex:
         log.error("json schema [[%s]] invalid! %s", schema_text, ex)
         raise ex
