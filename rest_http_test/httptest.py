@@ -213,14 +213,16 @@ def on_fail_parse(raw_args, current_section, env):
 ## http://json-schema.org/latest/json-schema-validation.html
 def response_body_schema_parse(raw_args, current_section, env):
     schema_text = raw_args_eval(raw_args, current_section)
-    try:
-        schema = json.loads(schema_text)
-    except Exception, ex:
-        log.error("json schema [[%s]] invalid! %s", schema_text, ex)
-        raise ex
-    jschema.Draft4Validator.check_schema(schema)
+    groups = code_re.findall(schema_text)
+    if len(groups) == 0: # if have no code
+        try:
+            schema = json.loads(schema_text)
+        except Exception, ex:
+            log.error("json schema [[%s]] invalid! %s", schema_text, ex)
+            raise ex
+        jschema.Draft4Validator.check_schema(schema)
 
-    return schema
+    return schema_text
 
 def response_body_save_parse(raw_args, current_section, env):
     return True
@@ -394,7 +396,8 @@ def response_check(self, testname, req_info,  res, env):
     else:
         response_body_schema = req_info.response_body_schema
         if response_body_schema and response_body_schema.args:
-            schema = response_body_schema.args
+            response_body_schema.args = dynamic_execute_ex(response_body_schema, 'args', env)
+            schema = json.loads(response_body_schema.args)
             try:
                 rsp_body = json.loads(rsp_body)
                 jschema.validate(rsp_body, schema)
@@ -427,6 +430,9 @@ def make_test_function(testname, block, url, env):
         if args.uri:
             args.uri = dynamic_execute_ex(args, 'uri', env)
 
+        if args.body:
+            args.body = dynamic_execute_ex(args, 'body', env)
+
         more_headers = req_info.more_headers
         myheaders = http.NewHeaders()
         ## timeout = req_info.args or 1000*10
@@ -437,8 +443,6 @@ def make_test_function(testname, block, url, env):
             # env.pop("req_info")
             myheaders = parse_headers(more_headers.args)
 
-        if args.body:
-            args.body = dynamic_execute_ex(args, 'body', env)
         # env.pop("req_info")
         if args.uri.startswith("http://") or \
             args.uri.startswith("https://"):
