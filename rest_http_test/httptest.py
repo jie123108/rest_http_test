@@ -506,8 +506,8 @@ class HttpTestResult(unittest.TextTestResult):
         elif self.dots:
             self.stream.write(RED('E'))
             self.stream.flush()
-        error = self._exc_info_to_string(err, test)
-        log.error(RED(error))
+        # error = self._exc_info_to_string(err, test)
+        # log.error(RED(error))
 
     def addFailure(self, test, err):
         # super(HttpTestResult, self).addFailure(test, err)
@@ -518,8 +518,8 @@ class HttpTestResult(unittest.TextTestResult):
         elif self.dots:
             self.stream.write(RED('F'))
             self.stream.flush()
-        error = self._exc_info_to_string(err, test)
-        log.error(RED(error))
+        # error = self._exc_info_to_string(err, test)
+        # log.error(RED(error))
 
         testname = test.testname
         req_info = test.req_info
